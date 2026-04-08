@@ -1,54 +1,60 @@
 # crispy-iptv-tools
 
-Reusable IPTV playlist utility crate for transformation, normalization, and cleanup.
+Reusable IPTV playlist utility crate for transformation, normalization, cleanup, and sorting.
 
-## Status
+## What This Crate Is
 
-Extracted from CrispyTivi. Intended as a reusable toolbox layered on top of shared IPTV entry types.
+`crispy-iptv-tools` sits on top of `crispy-iptv-types` and provides the reusable data-munging operations that are common in IPTV ingestion pipelines.
 
-## What This Crate Provides
+## What It Provides
 
+- deduplication
 - filtering
 - merging
-- deduplication
 - normalization
 - sorting
-- resolution labeling
+- resolution detection helpers
 - image and stream URL sanitization
+- UDPXY helpers
 - template application
-- UDPXY conversion helpers
-- title/id unification helpers
+- title and ID unification helpers
 
 ## Installation
 
 ```toml
 [dependencies]
-crispy-iptv-tools = "0.1"
+crispy-iptv-tools = "0.1.1"
 ```
+
+MSRV: Rust `1.85`
 
 ## Quick Start
 
 ```rust
 use crispy_iptv_tools::{deduplicate, DeduplicateStrategy};
+use crispy_iptv_types::PlaylistEntry;
 
-# fn demo() {
-let items = Vec::new();
+let items: Vec<PlaylistEntry> = Vec::new();
 let _deduped = deduplicate(&items, DeduplicateStrategy::ByUrlHash);
-# }
 ```
 
-## Relationship To Other Crates
-
-- built on `crispy-iptv-types`
-- complements `crispy-m3u`
-
-## Primary Use Cases
+## Typical Uses
 
 - playlist cleanup
-- migration pipelines
-- dedupe and normalization passes
-- provider import tooling
+- normalization before import
+- merging multiple provider feeds
+- preparing playlists for export
 
-## Caveats
+## Related Crates
 
-- before public release, scope should stay focused on truly generic utilities and avoid app-specific assumptions
+- `crispy-iptv-types`
+- `crispy-m3u`
+
+## Current Limitations
+
+- utility coverage is intentionally focused on playlist operations; this crate is not a provider client
+- caller still owns persistence and orchestration
+
+## License
+
+See `LICENSE.md` and `NOTICE.md`.
