@@ -111,12 +111,12 @@ fn compare_by(a: &PlaylistEntry, b: &PlaylistEntry, criterion: SortCriteria) -> 
         SortCriteria::Resolution => {
             let a_res = detect_resolution(
                 a.name.as_deref().unwrap_or(""),
-                a.url.as_deref().unwrap_or(""),
+                a.primary_url().unwrap_or(""),
                 &a.extras,
             );
             let b_res = detect_resolution(
                 b.name.as_deref().unwrap_or(""),
-                b.url.as_deref().unwrap_or(""),
+                b.primary_url().unwrap_or(""),
                 &b.extras,
             );
             a_res.cmp(&b_res)

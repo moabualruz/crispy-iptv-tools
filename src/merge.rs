@@ -27,11 +27,14 @@ mod tests {
     use super::*;
 
     fn make_entry(name: &str, url: &str) -> PlaylistEntry {
-        PlaylistEntry {
+        let mut entry = PlaylistEntry {
             name: Some(name.to_string()),
-            url: Some(url.to_string()),
             ..Default::default()
+        };
+        if !url.is_empty() {
+            entry.set_primary_url(url.to_string());
         }
+        entry
     }
 
     #[test]

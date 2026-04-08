@@ -28,7 +28,7 @@ pub fn replace_group_by_source(entries: &mut [PlaylistEntry], source_name: &str)
 pub fn append_resolution_to_name(entries: &mut [PlaylistEntry]) {
     for entry in entries.iter_mut() {
         let name = entry.name.as_deref().unwrap_or("");
-        let url = entry.url.as_deref().unwrap_or("");
+        let url = entry.primary_url().unwrap_or("");
         let resolution = detect_resolution(name, url, &entry.extras);
 
         if resolution != crispy_iptv_types::Resolution::Unknown {
@@ -68,16 +68,19 @@ mod tests {
     use super::*;
 
     fn make_entry(name: &str, group: &str, url: &str) -> PlaylistEntry {
-        PlaylistEntry {
+        let mut entry = PlaylistEntry {
             name: Some(name.to_string()),
             group_title: if group.is_empty() {
                 None
             } else {
                 Some(group.to_string())
             },
-            url: Some(url.to_string()),
             ..Default::default()
+        };
+        if !url.is_empty() {
+            entry.set_primary_url(url.to_string());
         }
+        entry
     }
 
     #[test]

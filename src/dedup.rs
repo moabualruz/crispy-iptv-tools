@@ -44,7 +44,7 @@ pub fn deduplicate(
 /// Extract the deduplication key from an entry based on the strategy.
 fn extract_key(entry: &PlaylistEntry, strategy: &DeduplicateStrategy) -> String {
     match strategy {
-        DeduplicateStrategy::ByUrl => entry.url.as_deref().unwrap_or("").to_lowercase(),
+        DeduplicateStrategy::ByUrl => entry.primary_url().unwrap_or("").to_lowercase(),
         DeduplicateStrategy::ByName => entry.name.as_deref().unwrap_or("").to_lowercase(),
         DeduplicateStrategy::ByTvgId => entry.tvg_id.as_deref().unwrap_or("").to_lowercase(),
         DeduplicateStrategy::Custom(f) => f(entry),
@@ -56,16 +56,19 @@ mod tests {
     use super::*;
 
     fn make_entry(name: &str, url: &str, tvg_id: &str) -> PlaylistEntry {
-        PlaylistEntry {
+        let mut entry = PlaylistEntry {
             name: Some(name.to_string()),
-            url: Some(url.to_string()),
             tvg_id: if tvg_id.is_empty() {
                 None
             } else {
                 Some(tvg_id.to_string())
             },
             ..Default::default()
+        };
+        if !url.is_empty() {
+            entry.set_primary_url(url.to_string());
         }
+        entry
     }
 
     #[test]
@@ -100,7 +103,7 @@ mod tests {
         ];
         let result = deduplicate(&entries, &DeduplicateStrategy::ByName);
         assert_eq!(result.len(), 2);
-        assert_eq!(result[0].url.as_deref().unwrap(), "http://a.com/1");
+        assert_eq!(result[0].primary_url().unwrap(), "http://a.com/1");
     }
 
     #[test]
@@ -125,7 +128,7 @@ mod tests {
         let result = deduplicate(
             &entries,
             &DeduplicateStrategy::Custom(|e| {
-                let url = e.url.as_deref().unwrap_or("");
+                let url = e.primary_url().unwrap_or("");
                 url::Url::parse(url)
                     .ok()
                     .and_then(|u| u.host_str().map(|h| h.to_string()))

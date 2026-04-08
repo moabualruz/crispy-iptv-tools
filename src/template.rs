@@ -73,21 +73,24 @@ mod tests {
     use super::*;
 
     fn make_entry(name: &str, tvg_id: &str, url: &str, group: &str) -> PlaylistEntry {
-        PlaylistEntry {
+        let mut entry = PlaylistEntry {
             name: Some(name.to_string()),
             tvg_id: if tvg_id.is_empty() {
                 None
             } else {
                 Some(tvg_id.to_string())
             },
-            url: Some(url.to_string()),
             group_title: if group.is_empty() {
                 None
             } else {
                 Some(group.to_string())
             },
             ..Default::default()
+        };
+        if !url.is_empty() {
+            entry.set_primary_url(url.to_string());
         }
+        entry
     }
 
     #[test]
@@ -100,7 +103,7 @@ mod tests {
         assert_eq!(result[0].name.as_deref(), Some("BBC One"));
         assert_eq!(result[0].group_title.as_deref(), Some("UK Channels"));
         // URL is preserved from main.
-        assert_eq!(result[0].url.as_deref(), Some("http://a.com/1"));
+        assert_eq!(result[0].primary_url(), Some("http://a.com/1"));
     }
 
     #[test]

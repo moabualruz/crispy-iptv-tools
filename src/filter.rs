@@ -65,7 +65,7 @@ pub fn filter_entries(
 /// Check whether a single entry passes all filter criteria.
 fn passes_filter(entry: &PlaylistEntry, filter: &EntryFilter, name_regex: Option<&Regex>) -> bool {
     let name = entry.name.as_deref().unwrap_or("");
-    let url = entry.url.as_deref().unwrap_or("");
+    let url = entry.primary_url().unwrap_or("");
     let group = entry.group_title.as_deref().unwrap_or("");
 
     // Resolution filter.
@@ -113,12 +113,15 @@ mod tests {
     use super::*;
 
     fn make_entry(name: &str, group: &str, url: &str) -> PlaylistEntry {
-        PlaylistEntry {
+        let mut entry = PlaylistEntry {
             name: Some(name.to_string()),
             group_title: Some(group.to_string()),
-            url: Some(url.to_string()),
             ..Default::default()
+        };
+        if !url.is_empty() {
+            entry.set_primary_url(url.to_string());
         }
+        entry
     }
 
     #[test]
