@@ -7,10 +7,14 @@ use std::collections::HashSet;
 
 use crispy_iptv_types::PlaylistEntry;
 
+use crate::normalize::normalize_url;
+
 /// Strategy for determining duplicate entries.
 pub enum DeduplicateStrategy {
     /// Same URL = duplicate.
     ByUrl,
+    /// Same normalized URL = duplicate.
+    ByNormalizedUrl,
     /// Same name = duplicate.
     ByName,
     /// Same tvg_id = duplicate.
@@ -45,6 +49,10 @@ pub fn deduplicate(
 fn extract_key(entry: &PlaylistEntry, strategy: &DeduplicateStrategy) -> String {
     match strategy {
         DeduplicateStrategy::ByUrl => entry.primary_url().unwrap_or("").to_lowercase(),
+        DeduplicateStrategy::ByNormalizedUrl => entry
+            .primary_url()
+            .and_then(|url| normalize_url(url).ok())
+            .unwrap_or_default(),
         DeduplicateStrategy::ByName => entry.name.as_deref().unwrap_or("").to_lowercase(),
         DeduplicateStrategy::ByTvgId => entry.tvg_id.as_deref().unwrap_or("").to_lowercase(),
         DeduplicateStrategy::Custom(f) => f(entry),
@@ -91,6 +99,16 @@ mod tests {
             make_entry("B", "http://a.com/1", ""),
         ];
         let result = deduplicate(&entries, &DeduplicateStrategy::ByUrl);
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn dedup_by_normalized_url_removes_equivalent_urls() {
+        let entries = vec![
+            make_entry("A", "HTTP://example.com/path?z=1&a=2", ""),
+            make_entry("B", "http://example.com/path?a=2&z=1", ""),
+        ];
+        let result = deduplicate(&entries, &DeduplicateStrategy::ByNormalizedUrl);
         assert_eq!(result.len(), 1);
     }
 

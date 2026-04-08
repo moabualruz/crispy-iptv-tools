@@ -54,6 +54,35 @@ pub fn sort_entries(entries: &mut [PlaylistEntry], criteria: &[SortCriteria]) {
     if criteria.is_empty() {
         return;
     }
+    if criteria.len() == 1 {
+        match criteria[0] {
+            SortCriteria::Name => {
+                entries.sort_by_cached_key(|entry| entry.name.as_deref().unwrap_or("").to_lowercase());
+                return;
+            }
+            SortCriteria::Group => {
+                entries.sort_by_cached_key(|entry| {
+                    entry.group_title.as_deref().unwrap_or("").to_lowercase()
+                });
+                return;
+            }
+            SortCriteria::Number => {
+                entries.sort_by_cached_key(|entry| parse_chno(entry.tvg_chno.as_deref()));
+                return;
+            }
+            SortCriteria::Resolution => {
+                entries.sort_by_cached_key(|entry| {
+                    detect_resolution(
+                        entry.name.as_deref().unwrap_or(""),
+                        entry.primary_url().unwrap_or(""),
+                        &entry.extras,
+                    )
+                });
+                return;
+            }
+            SortCriteria::TvgId => {}
+        }
+    }
     entries.sort_by(|a, b| compare_entries(a, b, criteria));
 }
 

@@ -29,11 +29,25 @@ pub struct EntryFilter {
     /// Exclude entries belonging to these groups.
     pub exclude_groups: Option<Vec<String>>,
 
+    /// How include/exclude group matching should be evaluated.
+    pub group_match_mode: GroupMatchMode,
+
+    /// Separator characters used for multi-group tokenization.
+    pub group_separators: Vec<char>,
+
     /// Regex pattern — only entries whose name matches are kept.
     pub name_pattern: Option<String>,
 
     /// If true, entries with adult-content indicators are excluded.
     pub exclude_adult: bool,
+}
+
+/// Group matching behavior.
+#[derive(Debug, Clone, Copy, Default)]
+pub enum GroupMatchMode {
+    #[default]
+    Exact,
+    Contains,
 }
 
 /// Filter entries according to the given filter configuration.
@@ -77,18 +91,24 @@ fn passes_filter(entry: &PlaylistEntry, filter: &EntryFilter, name_regex: Option
         }
     }
 
+    let group_values = tokenize_groups(group, &filter.group_separators);
+
     // Include-groups filter (case-insensitive).
     if let Some(include) = &filter.groups {
-        let group_lower = group.to_lowercase();
-        if !include.iter().any(|g| g.to_lowercase() == group_lower) {
+        if !include
+            .iter()
+            .any(|expected| group_matches(&group_values, expected, filter.group_match_mode))
+        {
             return false;
         }
     }
 
     // Exclude-groups filter (case-insensitive).
     if let Some(exclude) = &filter.exclude_groups {
-        let group_lower = group.to_lowercase();
-        if exclude.iter().any(|g| g.to_lowercase() == group_lower) {
+        if exclude
+            .iter()
+            .any(|expected| group_matches(&group_values, expected, filter.group_match_mode))
+        {
             return false;
         }
     }
@@ -106,6 +126,23 @@ fn passes_filter(entry: &PlaylistEntry, filter: &EntryFilter, name_regex: Option
     }
 
     true
+}
+
+fn tokenize_groups(group: &str, separators: &[char]) -> Vec<String> {
+    let separators = if separators.is_empty() { &[';', '|', ','][..] } else { separators };
+    group.split(|ch| separators.contains(&ch))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_lowercase())
+        .collect()
+}
+
+fn group_matches(group_values: &[String], expected: &str, mode: GroupMatchMode) -> bool {
+    let expected = expected.trim().to_lowercase();
+    group_values.iter().any(|actual| match mode {
+        GroupMatchMode::Exact => actual == &expected,
+        GroupMatchMode::Contains => actual.contains(&expected),
+    })
 }
 
 #[cfg(test)]
@@ -153,6 +190,7 @@ mod tests {
         ];
         let filter = EntryFilter {
             groups: Some(vec!["Sports".into()]),
+            group_match_mode: GroupMatchMode::Exact,
             ..Default::default()
         };
         let result = filter_entries(&entries, &filter).unwrap();
@@ -168,6 +206,7 @@ mod tests {
         ];
         let filter = EntryFilter {
             exclude_groups: Some(vec!["Sports".into()]),
+            group_match_mode: GroupMatchMode::Exact,
             ..Default::default()
         };
         let result = filter_entries(&entries, &filter).unwrap();
@@ -229,6 +268,31 @@ mod tests {
         let entries = vec![make_entry("A", "SPORTS", "http://a.com/1")];
         let filter = EntryFilter {
             groups: Some(vec!["sports".into()]),
+            group_match_mode: GroupMatchMode::Exact,
+            ..Default::default()
+        };
+        let result = filter_entries(&entries, &filter).unwrap();
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn filter_multi_group_exact_match() {
+        let entries = vec![make_entry("A", "Sports;News", "http://a.com/1")];
+        let filter = EntryFilter {
+            groups: Some(vec!["News".into()]),
+            group_match_mode: GroupMatchMode::Exact,
+            ..Default::default()
+        };
+        let result = filter_entries(&entries, &filter).unwrap();
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn filter_group_contains_match() {
+        let entries = vec![make_entry("A", "UK Sports Premium", "http://a.com/1")];
+        let filter = EntryFilter {
+            groups: Some(vec!["Sports".into()]),
+            group_match_mode: GroupMatchMode::Contains,
             ..Default::default()
         };
         let result = filter_entries(&entries, &filter).unwrap();

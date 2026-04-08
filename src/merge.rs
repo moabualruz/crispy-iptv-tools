@@ -6,13 +6,40 @@ use crispy_iptv_types::PlaylistEntry;
 
 use crate::dedup::{DeduplicateStrategy, deduplicate};
 
+/// Merge configuration for combining multiple entry sources.
+pub struct MergeOptions {
+    pub deduplicate: bool,
+    pub dedup_strategy: DeduplicateStrategy,
+}
+
+impl Default for MergeOptions {
+    fn default() -> Self {
+        Self {
+            deduplicate: true,
+            dedup_strategy: DeduplicateStrategy::ByNormalizedUrl,
+        }
+    }
+}
+
 /// Merge multiple entry lists into a single list.
 ///
 /// Concatenates all sources in order. Duplicates (by URL) are removed,
 /// keeping the first occurrence.
 pub fn merge_entries(sources: &[Vec<PlaylistEntry>]) -> Vec<PlaylistEntry> {
+    merge_entries_with_options(sources, &MergeOptions::default())
+}
+
+/// Merge multiple entry lists with explicit options.
+pub fn merge_entries_with_options(
+    sources: &[Vec<PlaylistEntry>],
+    options: &MergeOptions,
+) -> Vec<PlaylistEntry> {
     let combined: Vec<PlaylistEntry> = sources.iter().flat_map(|s| s.iter().cloned()).collect();
-    deduplicate(&combined, &DeduplicateStrategy::ByUrl)
+    if options.deduplicate {
+        deduplicate(&combined, &options.dedup_strategy)
+    } else {
+        combined
+    }
 }
 
 /// Merge multiple entry lists without deduplication.
@@ -79,6 +106,20 @@ mod tests {
         let a = vec![make_entry("A", "http://a.com/1")];
         let b = vec![make_entry("A copy", "http://a.com/1")];
         let result = merge_entries_raw(&[a, b]);
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn merge_with_options_can_disable_deduplication() {
+        let a = vec![make_entry("A", "http://a.com/1")];
+        let b = vec![make_entry("A copy", "http://a.com/1")];
+        let result = merge_entries_with_options(
+            &[a, b],
+            &MergeOptions {
+                deduplicate: false,
+                dedup_strategy: DeduplicateStrategy::ByUrl,
+            },
+        );
         assert_eq!(result.len(), 2);
     }
 }

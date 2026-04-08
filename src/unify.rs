@@ -51,10 +51,10 @@ pub fn load_unify_config(json: &str) -> Result<UnifyConfig, ToolsError> {
 /// Faithfully mirrors the Python logic in `unify_title_and_id()`.
 pub fn unify_entries(entries: &[PlaylistEntry], config: &UnifyConfig) -> Vec<PlaylistEntry> {
     let mut title_keys: Vec<&String> = config.title_unifiers.keys().collect();
-    title_keys.sort();
+    title_keys.sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
 
     let mut id_keys: Vec<&String> = config.id_unifiers.keys().collect();
-    id_keys.sort();
+    id_keys.sort_by(|a, b| b.len().cmp(&a.len()).then_with(|| a.cmp(b)));
 
     entries
         .iter()
@@ -208,5 +208,19 @@ mod tests {
         let result = unify_entries(&entries, &config);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].name.as_deref(), Some("BBC One"));
+    }
+
+    #[test]
+    fn unify_prefers_longest_match_first() {
+        let entries = vec![make_entry("World News HD", "", None)];
+        let config = UnifyConfig {
+            title_unifiers: HashMap::from([
+                ("World News".to_string(), "Global".to_string()),
+                ("News".to_string(), "N".to_string()),
+            ]),
+            ..Default::default()
+        };
+        let result = unify_entries(&entries, &config);
+        assert_eq!(result[0].name.as_deref(), Some("Global HD"));
     }
 }

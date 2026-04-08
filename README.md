@@ -18,6 +18,8 @@ Reusable IPTV playlist utility crate for transformation, normalization, cleanup,
 - UDPXY helpers
 - template application
 - title and ID unification helpers
+- configurable merge behavior
+- normalized URL-aware dedup defaults for merge flows
 
 ## Installation
 
@@ -35,7 +37,7 @@ use crispy_iptv_tools::{deduplicate, DeduplicateStrategy};
 use crispy_iptv_types::PlaylistEntry;
 
 let items: Vec<PlaylistEntry> = Vec::new();
-let _deduped = deduplicate(&items, DeduplicateStrategy::ByUrlHash);
+let _deduped = deduplicate(&items, &DeduplicateStrategy::ByNormalizedUrl);
 ```
 
 ## Typical Uses
@@ -54,6 +56,7 @@ let _deduped = deduplicate(&items, DeduplicateStrategy::ByUrlHash);
 
 - utility coverage is intentionally focused on playlist operations; this crate is not a provider client
 - caller still owns persistence and orchestration
+- group matching is still string-driven rather than full taxonomy-aware category management
 
 ## License
 
