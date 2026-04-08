@@ -129,8 +129,13 @@ fn passes_filter(entry: &PlaylistEntry, filter: &EntryFilter, name_regex: Option
 }
 
 fn tokenize_groups(group: &str, separators: &[char]) -> Vec<String> {
-    let separators = if separators.is_empty() { &[';', '|', ','][..] } else { separators };
-    group.split(|ch| separators.contains(&ch))
+    let separators = if separators.is_empty() {
+        &[';', '|', ','][..]
+    } else {
+        separators
+    };
+    group
+        .split(|ch| separators.contains(&ch))
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(|value| value.to_lowercase())

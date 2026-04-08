@@ -57,7 +57,8 @@ pub fn sort_entries(entries: &mut [PlaylistEntry], criteria: &[SortCriteria]) {
     if criteria.len() == 1 {
         match criteria[0] {
             SortCriteria::Name => {
-                entries.sort_by_cached_key(|entry| entry.name.as_deref().unwrap_or("").to_lowercase());
+                entries
+                    .sort_by_cached_key(|entry| entry.name.as_deref().unwrap_or("").to_lowercase());
                 return;
             }
             SortCriteria::Group => {
