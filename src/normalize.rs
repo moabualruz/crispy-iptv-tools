@@ -83,7 +83,7 @@ pub fn normalize_title(title: &str) -> String {
     collapsed.trim().to_string()
 }
 
-/// Extract base URL (scheme://host[:port]) from a full URL.
+/// Extract base URL (scheme://host\[:port\]) from a full URL.
 ///
 /// Returns `None` if the URL is not parseable or has no host.
 pub fn extract_base_url(url: &str) -> Option<String> {
