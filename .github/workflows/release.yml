@@ -10,6 +10,7 @@ on:
 
 jobs:
   release-check:
+    if: github.actor == github.repository_owner
     runs-on: [self-hosted, linux, x64, generic]
     steps:
       - uses: actions/checkout@v4

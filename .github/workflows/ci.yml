@@ -8,7 +8,8 @@ on:
 
 jobs:
   test:
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "generic"]') }}
+    if: (github.event_name != 'push' && github.event_name != 'workflow_dispatch') || github.actor == github.repository_owner
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.user.login != github.repository_owner && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "generic"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
