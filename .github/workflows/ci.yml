@@ -9,10 +9,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: crispy-iptv-tools-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
 jobs:
   prepare:
     if: (github.event_name != 'push' && github.event_name != 'workflow_dispatch') || github.actor == github.repository_owner
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == github.repository_owner && github.actor == github.repository_owner && fromJSON(format('["self-hosted", "linux", "x64", "generic", "pr-{0}-{1}-run-{2}-attempt-{3}"]', github.repository_id, github.event.pull_request.number, github.run_id, github.run_attempt)) || github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "generic"]') }}
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == github.repository_owner && github.actor == github.repository_owner && fromJSON(format('["self-hosted", "linux", "x64", "generic", "pr-{0}-{1}"]', github.repository_id, github.event.pull_request.number)) || github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "generic"]') }}
     steps:
       - uses: actions/checkout@v4
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login != github.repository_owner || github.actor != github.repository_owner
@@ -51,7 +55,7 @@ jobs:
       fail-fast: false
       matrix:
         gate: [fmt, clippy, test, doc, package]
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == github.repository_owner && github.actor == github.repository_owner && fromJSON(format('["self-hosted", "linux", "x64", "generic", "pr-{0}-{1}-run-{2}-attempt-{3}"]', github.repository_id, github.event.pull_request.number, github.run_id, github.run_attempt)) || github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "generic"]') }}
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == github.repository_owner && github.actor == github.repository_owner && fromJSON(format('["self-hosted", "linux", "x64", "generic", "pr-{0}-{1}"]', github.repository_id, github.event.pull_request.number)) || github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "generic"]') }}
     steps:
       - uses: actions/download-artifact@v4
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login != github.repository_owner || github.actor != github.repository_owner

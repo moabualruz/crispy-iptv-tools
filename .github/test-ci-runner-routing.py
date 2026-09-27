@@ -6,8 +6,8 @@ WORKFLOW = Path(__file__).parent / "workflows" / "ci.yml"
 TRUSTED_PR_RUNNER = (
     "${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && "
     "github.event.pull_request.user.login == github.repository_owner && github.actor == github.repository_owner && "
-    "fromJSON(format('[\"self-hosted\", \"linux\", \"x64\", \"generic\", \"pr-{0}-{1}-run-{2}-attempt-{3}\"]', "
-    "github.repository_id, github.event.pull_request.number, github.run_id, github.run_attempt)) || "
+    "fromJSON(format('[\"self-hosted\", \"linux\", \"x64\", \"generic\", \"pr-{0}-{1}\"]', "
+    "github.repository_id, github.event.pull_request.number)) || "
     "github.event_name == 'pull_request' && 'ubuntu-latest' || "
     "fromJSON('[\"self-hosted\", \"linux\", \"x64\", \"generic\"]') }}"
 )
@@ -29,7 +29,7 @@ def selected_runner(event, base_repo="moabualruz/crispy-iptv-tools", repository_
         if trusted:
             return (
                 "self-hosted:pr-"
-                f"{repository_id}-{event['pr']}-run-{event['run']}-attempt-{event['attempt']}"
+                f"{repository_id}-{event['pr']}"
             )
         return "ubuntu-latest"
     return ["self-hosted", "linux", "x64", "generic"]
@@ -54,6 +54,8 @@ class RunnerRoutingTests(unittest.TestCase):
         self.assertEqual(workflow.count(f"runs-on: {TRUSTED_PR_RUNNER}"), 2)
         runs_on = "\n".join(line for line in workflow.splitlines() if line.strip().startswith("runs-on:"))
         self.assertNotIn("github.event.pull_request.user.login !=", runs_on)
+        self.assertIn("group: crispy-iptv-tools-pr-${{ github.event.pull_request.number || github.ref }}", workflow)
+        self.assertIn("cancel-in-progress: false", workflow)
         self.assertIn(
             "github.event.pull_request.head.repo.full_name == github.repository",
             TRUSTED_PR_RUNNER,
@@ -112,7 +114,7 @@ class RunnerRoutingTests(unittest.TestCase):
         self.assertEqual(selected_runner(event), "ubuntu-latest")
         self.assertTrue(checkout_required(event))
 
-    def test_owner_same_repo_pr_uses_run_and_attempt_label_without_checkout(self):
+    def test_owner_same_repo_pr_reuses_one_label_without_checkout(self):
         event = {
             "name": "pull_request",
             "head_repo": "moabualruz/crispy-iptv-tools",
@@ -122,7 +124,9 @@ class RunnerRoutingTests(unittest.TestCase):
             "run": 44,
             "attempt": 3,
         }
-        self.assertEqual(selected_runner(event), "self-hosted:pr-123-2-run-44-attempt-3")
+        self.assertEqual(selected_runner(event), "self-hosted:pr-123-2")
+        retry = dict(event, run=99, attempt=4)
+        self.assertEqual(selected_runner(retry), "self-hosted:pr-123-2")
         self.assertFalse(checkout_required(event))
 
     def test_only_owner_pushes_and_dispatches_run_on_existing_generic_pool(self):
