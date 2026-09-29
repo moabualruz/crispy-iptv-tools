@@ -39,7 +39,7 @@ jobs:
           key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.toml', 'Cargo.lock') }}
           restore-keys: cargo-${{ runner.os }}-
       - name: fetch Rust dependencies
-        run: cargo fetch
+        run: cargo fetch --locked
       - name: archive checked out source for hosted jobs
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login != github.repository_owner || github.actor != github.repository_owner
         run: tar --exclude=.git --exclude=target -czf "$RUNNER_TEMP/source.tar.gz" -C "$GITHUB_WORKSPACE" .
@@ -92,10 +92,10 @@ jobs:
         run: |
           case "$GATE" in
             fmt) cargo fmt --check ;;
-            clippy) cargo clippy --all-targets --all-features -- -D warnings ;;
-            test) cargo test --all-features ;;
-            doc) cargo doc --no-deps ;;
-            package) cargo package ;;
+            clippy) cargo clippy --locked --all-targets --all-features -- -D warnings ;;
+            test) cargo test --locked --all-features ;;
+            doc) cargo doc --locked --no-deps ;;
+            package) cargo package --locked ;;
             *) echo "unknown gate: $GATE" >&2; exit 2 ;;
           esac
 
@@ -107,10 +107,17 @@ jobs:
     env:
       PREPARE_RESULT: ${{ needs.prepare.result }}
       GATE_RESULT: ${{ needs.gate.result }}
+      EVENT_NAME: ${{ github.event_name }}
+      ACTOR: ${{ github.actor }}
+      OWNER: ${{ github.repository_owner }}
     steps:
       - name: Require all CI gates to pass
         run: |
           for result in "$PREPARE_RESULT" "$GATE_RESULT"; do
+            # Non-owner push or dispatch skips the jobs on purpose; that is not a failure.
+            if [[ "$result" == skipped && ( "$EVENT_NAME" == push || "$EVENT_NAME" == workflow_dispatch ) && "$ACTOR" != "$OWNER" ]]; then
+              continue
+            fi
             if [[ "$result" != success ]]; then
               printf 'Required workflow gate did not succeed: %s\n' "$result" >&2
               exit 1

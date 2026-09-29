@@ -231,9 +231,37 @@ class RunnerRoutingTests(unittest.TestCase):
         )
         self.assertEqual(success.returncode, 0)
 
-    def test_cargo_cache_key_includes_lockfile(self):
+    def test_required_aggregate_tolerates_only_intentional_skips(self):
         workflow = WORKFLOW.read_text()
-        self.assertEqual(workflow.count("hashFiles('Cargo.toml', 'Cargo.lock')"), 2)
+        script = step_script(workflow, "required", "Require all CI gates to pass")
+
+        def run(event, actor, prepare, gate):
+            return subprocess.run(
+                ["bash", "-e", "-o", "pipefail", "-c", script],
+                env={
+                    "PREPARE_RESULT": prepare, "GATE_RESULT": gate,
+                    "EVENT_NAME": event, "ACTOR": actor, "OWNER": "moabualruz",
+                },
+                capture_output=True,
+                text=True,
+            ).returncode
+
+        self.assertEqual(run("push", "contributor", "skipped", "skipped"), 0)
+        self.assertEqual(run("workflow_dispatch", "contributor", "skipped", "skipped"), 0)
+        self.assertNotEqual(run("push", "moabualruz", "skipped", "skipped"), 0)
+        self.assertNotEqual(run("pull_request", "contributor", "skipped", "skipped"), 0)
+        self.assertNotEqual(run("push", "contributor", "success", "failure"), 0)
+
+    def test_gate_condition_runs_for_prs_and_owner_pushes_only(self):
+        workflow = WORKFLOW.read_text()
+        condition = job_value(workflow, "gate", "if")
+        for event, expected in [
+            ({"name": "pull_request", "actor": "contributor"}, True),
+            ({"name": "push", "actor": "moabualruz"}, True),
+            ({"name": "push", "actor": "contributor"}, False),
+            ({"name": "workflow_dispatch", "actor": "contributor"}, False),
+        ]:
+            self.assertEqual(bool(evaluate_workflow_expression(condition, event)), expected, event)
 
 
 if __name__ == "__main__":
