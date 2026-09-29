@@ -2,24 +2,125 @@ name: CI
 
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crispy-iptv-tools-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  prepare:
+    if: (github.event_name != 'push' && github.event_name != 'workflow_dispatch') || github.actor == github.repository_owner
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == github.repository_owner && github.actor == github.repository_owner && fromJSON(format('["self-hosted", "linux", "x64", "generic", "pr-{0}-{1}"]', github.repository_id, github.event.pull_request.number)) || github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "generic"]') }}
     steps:
       - uses: actions/checkout@v4
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login != github.repository_owner || github.actor != github.repository_owner
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify checkout matches GITHUB_SHA
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: test workflow runner routing
+        run: python3 .github/test-ci-runner-routing.py
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-      - name: cargo fmt
-        run: cargo fmt --check
-      - name: cargo clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-      - name: cargo test
-        run: cargo test --all-features
-      - name: cargo doc
-        run: cargo doc --no-deps
-      - name: cargo package
-        run: cargo package
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.toml', 'Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+      - name: fetch Rust dependencies
+        run: cargo fetch --locked
+      - name: archive checked out source for hosted jobs
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login != github.repository_owner || github.actor != github.repository_owner
+        run: tar --exclude=.git --exclude=target -czf "$RUNNER_TEMP/source.tar.gz" -C "$GITHUB_WORKSPACE" .
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login != github.repository_owner || github.actor != github.repository_owner
+        with:
+          name: source-${{ github.run_id }}
+          path: ${{ runner.temp }}/source.tar.gz
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 1
+
+  gate:
+    if: (github.event_name != 'push' && github.event_name != 'workflow_dispatch') || github.actor == github.repository_owner
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        gate: [fmt, clippy, test, doc, package]
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == github.repository_owner && github.actor == github.repository_owner && fromJSON(format('["self-hosted", "linux", "x64", "generic", "pr-{0}-{1}"]', github.repository_id, github.event.pull_request.number)) || github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted", "linux", "x64", "generic"]') }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login != github.repository_owner || github.actor != github.repository_owner
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login != github.repository_owner || github.actor != github.repository_owner
+        with:
+          name: source-${{ github.run_id }}
+          path: ${{ runner.temp }}/source
+      - name: unpack checked out source for hosted jobs
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login != github.repository_owner || github.actor != github.repository_owner
+        run: tar -xzf "$RUNNER_TEMP/source/source.tar.gz" -C "$GITHUB_WORKSPACE"
+      - name: Verify checkout matches GITHUB_SHA
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.toml', 'Cargo.lock') }}
+      - name: run ${{ matrix.gate }}
+        env:
+          GATE: ${{ matrix.gate }}
+          CARGO_TARGET_DIR: ${{ runner.temp }}/cargo-target/${{ matrix.gate }}
+        run: |
+          case "$GATE" in
+            fmt) cargo fmt --check ;;
+            clippy) cargo clippy --locked --all-targets --all-features -- -D warnings ;;
+            test) cargo test --locked --all-features ;;
+            doc) cargo doc --locked --no-deps ;;
+            package) cargo package --locked ;;
+            *) echo "unknown gate: $GATE" >&2; exit 2 ;;
+          esac
+
+  required:
+    name: Required CI
+    if: ${{ always() }}
+    needs: [prepare, gate]
+    runs-on: ubuntu-latest
+    env:
+      PREPARE_RESULT: ${{ needs.prepare.result }}
+      GATE_RESULT: ${{ needs.gate.result }}
+      EVENT_NAME: ${{ github.event_name }}
+      ACTOR: ${{ github.actor }}
+      OWNER: ${{ github.repository_owner }}
+    steps:
+      - name: Require all CI gates to pass
+        run: |
+          for result in "$PREPARE_RESULT" "$GATE_RESULT"; do
+            # Non-owner push or dispatch skips the jobs on purpose; that is not a failure.
+            if [[ "$result" == skipped && ( "$EVENT_NAME" == push || "$EVENT_NAME" == workflow_dispatch ) && "$ACTOR" != "$OWNER" ]]; then
+              continue
+            fi
+            if [[ "$result" != success ]]; then
+              printf 'Required workflow gate did not succeed: %s\n' "$result" >&2
+              exit 1
+            fi
+          done

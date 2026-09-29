@@ -10,7 +10,8 @@ on:
 
 jobs:
   release-check:
-    runs-on: ubuntu-latest
+    if: github.actor == github.repository_owner
+    runs-on: [self-hosted, linux, x64, generic]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -19,6 +20,6 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --check
-      - run: cargo clippy --all-targets --all-features -- -D warnings
-      - run: cargo test --all-features
-      - run: cargo package
+      - run: cargo clippy --locked --all-targets --all-features -- -D warnings
+      - run: cargo test --locked --all-features
+      - run: cargo package --locked
